@@ -1,0 +1,31 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    command: ["python", "-m", "cgr_sar2", "api", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      CGR_SAR2_PANGOLIN: "0"
+    volumes:
+      - nextclade-data:/app/data/nextclade
+
+  ui:
+    build: .
+    ports:
+      - "8501:8501"
+    command: ["python", "-m", "cgr_sar2", "streamlit", "--host", "0.0.0.0", "--port", "8501"]
+    environment:
+      CGR_SAR2_PANGOLIN: "0"
+    volumes:
+      - nextclade-data:/app/data/nextclade
+
+  # Uso pontual: docker compose --profile lab run --rm pangolin ...
+  pangolin:
+    image: staphb/pangolin:latest
+    profiles: ["lab"]
+    volumes:
+      - ./data/pangolin:/data
+    entrypoint: ["pangolin"]
+
+volumes:
+  nextclade-data:

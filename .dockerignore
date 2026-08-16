@@ -1,0 +1,14 @@
+.git
+.github
+data/fasta
+data/original
+data/fcgr
+data/pangolin
+models
+*.pdf
+__pycache__
+*.pyc
+.venv
+venv
+original
+examples/historical

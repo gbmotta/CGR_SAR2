@@ -47,3 +47,16 @@ def records_from_input(fasta_text: str | None, fasta_path: str | Path | None) ->
         else:
             records.append(("pasted_sequence", "".join(stripped.split())))
     return records
+
+
+def records_from_paths(paths: list[str | Path]) -> list[tuple[str, str]]:
+    records: list[tuple[str, str]] = []
+    for raw in paths:
+        path = Path(raw)
+        if path.is_dir():
+            files = sorted(path.glob("*.fa")) + sorted(path.glob("*.fasta")) + sorted(path.glob("*.fna"))
+            for fasta_path in files:
+                records.extend(parse_fasta(fasta_path))
+        elif path.is_file():
+            records.extend(parse_fasta(path))
+    return records

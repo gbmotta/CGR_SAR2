@@ -4,12 +4,10 @@ Identificacao de variantes de SARS-CoV-2 a partir do genoma completo.
 
 Ha **dois modos**:
 
-1. **Atual (recomendado)** — linhagem **Pango** e clado **Nextstrain** via [Nextclade](https://docs.nextstrain.org/projects/nextclade/), com o dataset SARS-CoV-2 mais recente. Painel de circulacao publica (CovSpectrum / GenBank) e estatuto WHO (VOI/VUM de julho de 2026).
-2. **Historico (artigo)** — CNN + CGR do Experimento 1 (Alpha, Beta, Gamma, Delta, Iota, Epsilon; GISAID 2021). Nao serve para Omicron nem para as linhagens de 2025–2026.
+1. **Atual (recomendado)** — linhagem **Pango** e clado **Nextstrain** via [Nextclade](https://docs.nextstrain.org/projects/nextclade/). Opcionalmente **Pangolin/UShER** (Docker). Painel de circulacao (CovSpectrum) e mutacoes-assinatura WHO (XFG, NB.1.8.1, PQ.16.1.1, JN.1).
+2. **Historico (artigo)** — CNN + CGR do Experimento 1 (Alpha–Epsilon, GISAID 2021). Nao serve para Omicron nem para 2025–2026.
 
-## App Streamlit (conta share.streamlit.io)
-
-Localmente:
+## App Streamlit
 
 ```bash
 python -m cgr_sar2 update-nextclade
@@ -17,33 +15,65 @@ pip install -r requirements-streamlit.txt
 python -m cgr_sar2 streamlit
 ```
 
-Na [Streamlit Community Cloud](https://share.streamlit.io):
+Aceita **varios FASTA**, mostra assinaturas da espicula e exporta **CSV/Excel**.
 
-1. Publique este repositorio no GitHub.
-2. Em share.streamlit.io ? **New app** ? escolha o repo.
-3. Main file: `streamlit_app.py`
-4. Advanced ? Requirements file: `requirements-streamlit.txt`
-5. O `setup.sh` instala o binario Nextclade e descarrega o dataset atual no build.
+Na [Streamlit Community Cloud](https://share.streamlit.io): repo `gbmotta/CGR_SAR2`, main file `streamlit_app.py`, requirements `requirements-streamlit.txt`. O `setup.sh` instala o Nextclade no build.
 
-Para refrescar linhagens depois de um update da Pango: **Reboot** da app (volta a correr o `setup.sh`) ou, em local, `python -m cgr_sar2 update-nextclade`.
-
-## Linha de comando (Pango atual)
+## Linha de comando (lote)
 
 ```bash
 python -m cgr_sar2 update-nextclade
-python -m cgr_sar2 pango --fasta genoma.fasta
+python -m cgr_sar2 pango --fasta amostra1.fasta amostra2.fasta --csv saida.csv --xlsx saida.xlsx
+python -m cgr_sar2 pango --input-dir pasta_com_fastas --engine both
 ```
+
+`--engine both` corre Nextclade e Pangolin (se o binario ou `staphb/pangolin` estiver disponivel) e indica se as linhagens coincidem.
+
+## API
+
+```bash
+pip install -r requirements-api.txt
+python -m cgr_sar2 api --port 8000
+```
+
+```bash
+curl -s http://127.0.0.1:8000/health
+curl -s -X POST http://127.0.0.1:8000/classify \
+  -H 'Content-Type: application/json' \
+  -d '{"fasta":">q\nATTAAAGGTTTATACCTTCCCAGGTAACAA...","engine":"nextclade"}'
+curl -s -X POST -F fasta=@genoma.fasta http://127.0.0.1:8000/classify/file
+```
+
+## Docker
+
+```bash
+docker compose up --build api
+# UI: docker compose up --build ui
+# Pangolin pontual:
+docker compose --profile lab run --rm pangolin /data/query.fasta --outfile /data/lineage_report.csv
+```
+
+A imagem inclui Nextclade. Pangolin e um servico opcional (`staphb/pangolin`) porque o UShER e pesado demais para a Cloud.
+
+## Dataset Nextclade (semanal)
+
+O workflow `.github/workflows/update-nextclade.yml` corre **todas as segundas** (ou manualmente) e faz commit do dataset se a Nextstrain publicou uma versao nova. Localmente: `python -m cgr_sar2 update-nextclade`.
+
+## Exemplos atuais
+
+```bash
+python -m cgr_sar2 download --current-examples
+```
+
+Gera `examples/xfg_example.fasta`, `nb181_example.fasta` e `jn1_example.fasta` a partir do NCBI. Os FASTA Alpha–Epsilon ficam em `examples/historical/`.
 
 ## Modo historico (artigo IEEE Access)
 
 ```bash
 pip install -r requirements.txt
 python -m cgr_sar2 train --from-original --epochs 40
-python -m cgr_sar2 predict --fasta examples/delta_example.fasta
-python -m cgr_sar2 app
+python -m cgr_sar2 predict --fasta examples/historical/delta_example.fasta
 ```
-
-O modelo em `models/variant_cnn.pt` foi treinado nas 42.638 imagens CGR do subset 1A (GISAID). Holdout 10%: 100% de acerto, em linha com o artigo. Esse classificador **nao** acompanha XFG, NB.1.8.1, JN.1, etc.
 
 ## Circulacao WHO (julho 2026)
 
@@ -54,12 +84,6 @@ O modelo em `models/variant_cnn.pt` foi treinado nas 42.638 imagens CGR do subse
 | NB.1.8.1 | 25B | VUM |
 | PQ.16.1.1 | 25B | VUM |
 | BA.3.2 | — | VUM |
-
-Fonte: [WHO Tracking SARS-CoV-2 variants](https://www.who.int/activities/tracking-SARS-CoV-2-variants). A atribuicao de uma amostra concreta e feita pelo Nextclade (arvore de referencia atualizada), nao por esta tabela.
-
-## Dados e scripts originais do artigo
-
-Em `original/matlab`, `original/R`, `original/python` e `data/original/` (imagens `.mat` do Dropbox).
 
 ## Referencia
 

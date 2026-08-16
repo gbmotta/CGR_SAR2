@@ -56,8 +56,11 @@ def _cmd_train(args: argparse.Namespace) -> None:
 
 
 def _cmd_download(args: argparse.Namespace) -> None:
-    from .download import download_all
+    from .download import download_all, download_current_examples
 
+    if args.current_examples:
+        download_current_examples(Path("examples"))
+        return
     download_all(args.out_dir, args.per_class, args.seed)
 
 
@@ -74,35 +77,33 @@ def _cmd_info(_args: argparse.Namespace) -> None:
 
 
 def _cmd_pango(args: argparse.Namespace) -> None:
-    from .fasta import records_from_input
-    from .nextclade_run import assign_fasta
+    from .classify import classify_records, collect_records
+    from .report import write_csv, write_xlsx
 
-    records = records_from_input(args.sequence, args.fasta)
+    paths = list(args.fasta or [])
+    if args.input_dir:
+        paths.append(args.input_dir)
+    records = collect_records(args.sequence, paths)
     if not records:
-        raise SystemExit("Forneca --fasta ou --sequence")
-    blob = "\n".join(f">{header}\n{seq}" for header, seq in records)
-    rows = assign_fasta(blob)
-    payload = []
+        raise SystemExit("Forneca --fasta, --input-dir ou --sequence")
+    rows = classify_records(records, engine=args.engine)
     for row in rows:
-        item = {
-            "header": row.header,
-            "pango": row.pango,
-            "nextstrain": row.clade,
-            "who": row.who_status,
-            "who_label": row.who_label,
-            "qc": row.qc,
-            "substitutions": row.substitutions,
-            "missing": row.missing,
-        }
-        payload.append(item)
-        print(row.header or "(sem cabecalho)")
-        print(f"  Pango: {row.pango}")
-        print(f"  Nextstrain: {row.clade}")
-        print(f"  WHO: {row.who_status} - {row.who_label}")
-        print(f"  QC: {row.qc or '-'}")
+        print(row.get("header") or "(sem cabecalho)")
+        print(f"  Nextclade: {row.get('pango_nextclade')}  {row.get('nextstrain')}")
+        if row.get("pango_pangolin"):
+            print(f"  Pangolin:  {row.get('pango_pangolin')}  acordo={row.get('agreement')}")
+        print(f"  WHO: {row.get('who')} - {row.get('who_label')}")
+        print(f"  Assinatura: {row.get('signature_best')} ({row.get('signature_score')}) {row.get('signatures')}")
+        print(f"  QC: {row.get('qc_nextclade') or '-'}")
         print()
     if args.json:
-        Path(args.json).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        Path(args.json).write_text(json.dumps(rows, indent=2), encoding="utf-8")
+    if args.csv:
+        write_csv(rows, args.csv)
+        print(f"CSV: {args.csv}")
+    if args.xlsx:
+        write_xlsx(rows, args.xlsx)
+        print(f"Excel: {args.xlsx}")
 
 
 def _cmd_update_nextclade(_args: argparse.Namespace) -> None:
@@ -111,6 +112,15 @@ def _cmd_update_nextclade(_args: argparse.Namespace) -> None:
     path = update_dataset()
     print(f"Dataset atualizado em {path}")
     print(f"Versao: {dataset_stamp(path)}")
+
+
+def _cmd_api(args: argparse.Namespace) -> None:
+    import uvicorn
+
+    from .nextclade_run import ensure_ready
+
+    ensure_ready()
+    uvicorn.run("cgr_sar2.api:app", host=args.host, port=args.port, reload=False)
 
 
 def _cmd_streamlit(args: argparse.Namespace) -> None:
@@ -167,6 +177,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_dl.add_argument("--out-dir", type=Path, default=Path("data/fasta"))
     p_dl.add_argument("--per-class", type=int, default=400)
     p_dl.add_argument("--seed", type=int, default=42)
+    p_dl.add_argument(
+        "--current-examples",
+        action="store_true",
+        help="Descarregar 1 genoma NCBI de XFG, NB.1.8.1 e JN.1 para examples/",
+    )
     p_dl.set_defaults(func=_cmd_download)
 
     p_app = sub.add_parser("app", help="Open the Gradio web interface (modelo historico)")
@@ -181,11 +196,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_st.add_argument("--port", type=int, default=8501)
     p_st.set_defaults(func=_cmd_streamlit)
 
-    p_pango = sub.add_parser("pango", help="Atribuir linhagem Pango com Nextclade")
-    p_pango.add_argument("--fasta", type=Path)
+    p_pango = sub.add_parser("pango", help="Atribuir linhagem Pango (lote)")
+    p_pango.add_argument("--fasta", type=Path, nargs="*", help="Um ou mais ficheiros FASTA")
+    p_pango.add_argument("--input-dir", type=Path, help="Pasta com varios FASTA")
     p_pango.add_argument("--sequence")
+    p_pango.add_argument("--engine", choices=("nextclade", "pangolin", "both"), default="nextclade")
     p_pango.add_argument("--json", type=Path)
+    p_pango.add_argument("--csv", type=Path)
+    p_pango.add_argument("--xlsx", type=Path)
     p_pango.set_defaults(func=_cmd_pango)
+
+    p_api = sub.add_parser("api", help="API HTTP (POST /classify)")
+    p_api.add_argument("--host", default="127.0.0.1")
+    p_api.add_argument("--port", type=int, default=8000)
+    p_api.set_defaults(func=_cmd_api)
 
     p_up = sub.add_parser("update-nextclade", help="Descarregar Nextclade e o dataset SARS-CoV-2")
     p_up.set_defaults(func=_cmd_update_nextclade)

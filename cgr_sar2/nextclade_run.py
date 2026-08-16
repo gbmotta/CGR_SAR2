@@ -174,7 +174,7 @@ def _parse_tsv(text: str, dataset_dir: str) -> list[PangoAssignment]:
                 qc=(raw.get("qc.overallStatus") or raw.get("qcStatus") or "").strip(),
                 substitutions=_maybe_int(raw.get("totalSubstitutions")),
                 missing=_maybe_int(raw.get("totalMissing")),
-                aa_substitutions=(raw.get("aaSubstitutions") or "")[:500],
+                aa_substitutions=raw.get("aaSubstitutions") or raw.get("aaSubstitutions") or "",
                 extra={
                     "partiallyAliased": raw.get("partiallyAliased") or "",
                     "qcScore": raw.get("qc.overallScore") or "",

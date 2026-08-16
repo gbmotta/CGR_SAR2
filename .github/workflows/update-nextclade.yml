@@ -1,0 +1,39 @@
+name: Atualizar dataset Nextclade
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar Nextclade
+        run: |
+          mkdir -p bin
+          curl -fsSL -o bin/nextclade \
+            https://github.com/nextstrain/nextclade/releases/latest/download/nextclade-x86_64-unknown-linux-gnu
+          chmod +x bin/nextclade
+          ./bin/nextclade --version
+      - name: Descarregar dataset SARS-CoV-2
+        run: |
+          mkdir -p data/nextclade
+          ./bin/nextclade dataset get \
+            --name nextstrain/sars-cov-2/wuhan-hu-1/orfs \
+            --output-dir data/nextclade/sars-cov-2
+      - name: Commit se houver mudanca
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/nextclade/sars-cov-2
+          if git diff --staged --quiet; then
+            echo "Dataset inalterado"
+          else
+            git commit -m "Atualizar dataset Nextclade SARS-CoV-2"
+            git push
+          fi

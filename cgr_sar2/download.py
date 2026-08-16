@@ -159,6 +159,49 @@ def download_variant(variant: str, out_dir: Path, per_class: int, seed: int) -> 
     return kept
 
 
+CURRENT_EXAMPLE_LINEAGES = (
+    ("XFG", "xfg_example.fasta"),
+    ("NB.1.8.1", "nb181_example.fasta"),
+    ("JN.1", "jn1_example.fasta"),
+)
+
+
+def download_current_examples(out_dir: Path = Path("examples")) -> list[Path]:
+    """Um genoma publico NCBI por linhagem atual (XFG, NB.1.8.1, JN.1)."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for lineage, filename in CURRENT_EXAMPLE_LINEAGES:
+        dest = out_dir / filename
+        print(f"Exemplo atual: {lineage}")
+        try:
+            ids = list_accessions(lineage)
+        except RuntimeError as exc:
+            print(f"  falhou o relatorio NCBI ({exc})")
+            continue
+        saved = False
+        for start in range(0, min(len(ids), 40), FETCH_BATCH):
+            batch = ids[start : start + FETCH_BATCH]
+            try:
+                fasta = fetch_fasta(batch)
+            except RuntimeError as exc:
+                print(f"  falhou o efetch ({exc})")
+                continue
+            for header, seq in parse_fasta(fasta):
+                seq_u = seq.upper()
+                if not _quality_ok(seq_u):
+                    continue
+                dest.write_text(f">{header}\n{seq_u}\n", encoding="utf-8")
+                print(f"  gravado {dest} ({header.split()[0]}, {len(seq_u)} nt)")
+                written.append(dest)
+                saved = True
+                break
+            if saved:
+                break
+        if not saved:
+            print(f"  nenhum genoma completo aceite para {lineage}")
+    return written
+
+
 def download_all(out_dir: Path, per_class: int, seed: int) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     for variant in VARIANT_LABELS:

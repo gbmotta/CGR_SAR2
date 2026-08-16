@@ -3,7 +3,10 @@ __pycache__/
 .Python
 .venv/
 venv/
-data/
+data/fasta/
+data/original/
+data/fcgr/
+data/pangolin/
 bin/
 models/*.pt
 *.pdf
